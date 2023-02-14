@@ -1,0 +1,191 @@
+<!doctype html><html class="not-ready text-sm lg:text-base" style=--bg:#faf6f1 lang=en><head><meta charset=utf-8><meta http-equiv=x-ua-compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><title>Groth16プロトコルを追う - 6i's website</title><meta name=theme-color><meta name=description content="Groth16とは この記事では、Groth16の論文1の読んでみての自分なりの理解をまとめます。Groth16とはゼロ知識証明システムの一種で、Jens Grothらが提案されました。ゼロ知識証明とは、あるステートメントが成立することを検証者に対して証明するためのシステムで、かつ成立するということ以外の情報が漏れないという特徴があります。
+この記事では、ある3次方程式の例を用いて証明者が解を知っていることをGroth16プロトコルを用いて検証者に証明する様子を具体的に追っていきます。Groth16の完全性・健全性・ゼロ知識性に関しては触れません。
+Quadratic Arithmetic Program 今回はVitalikさんのこちらの記事2を参考に、以下の3次方程式の解 ($x=3$) を知っていることを解に関する情報を公開することなく、検証者に対して証明したいとします。 $$ x^3 + x + 5 = 35 $$ Groth16はQuadratic Arithmetic Program (QAP)と呼ばれる形式を対象とするプロトコルなので、この問題をQAPに変換する必要があります。
+QAPは$m$個の$n-1$次方程式$\ v_i(X), u_i(x), w_i(X)\ $と$n$次方程式$\ t(X)\ $に対して、下の恒等式を満たすような$\ \lbrace a_i \rbrace_{i=0}^{m}, h(X)\ $が存在するかという問題です。 $$ \sum_{i=0}^m a_i v_i(X) \cdot \sum_{i=0}^m a_i u_i(X) = \sum_{i=0}^m a_i w_i(X) + h(X)t(X) $$
+Flattening まずは、証明したい方程式$\ x^3 + x + 5 = 35\ $を$\ a\ (+ / \times)\ b = c\ $の形のみで表される形へ平坦化をします。 $$ x \times x = \text{sym}_1 \newline \text{sym}_1 \times x = y \newline y + x = \text{sym}_2 \newline \text{sym}_2 + 5 = \text{out} \newline 1 \times 0 = 0 \newline \text{out} \times 0 = 0 $$ $\ x^3 + x + 5 = 35\ $を満たす$x$を見つけることは、上の制約式において$\ \text{out}=35\ $のときにすべての制約を満たす$\ \lbrace x, \text{sym}_1, y, \text{sym}_2 \rbrace\ $を見つけることに対応します。"><meta name=author content="6i"><link rel="preload stylesheet" as=style href=https://6iKezbAD3CZnf.github.io/main.min.css><script defer src=https://6iKezbAD3CZnf.github.io/highlight.min.js onload=hljs.initHighlightingOnLoad()></script>
+<link rel=preload as=image href=https://6iKezbAD3CZnf.github.io/theme.png><link rel=preload as=image href=https://raw.githubusercontent.com/6iKezbAD3CZnf/6iKezbAD3CZnf.github.io/main/assets/avatar.jpg><link rel=preload as=image href=https://6iKezbAD3CZnf.github.io/twitter.svg><link rel=preload as=image href=https://6iKezbAD3CZnf.github.io/github.svg><link rel=icon href=https://6iKezbAD3CZnf.github.io/favicon.ico><link rel=apple-touch-icon href=https://6iKezbAD3CZnf.github.io/apple-touch-icon.png><meta name=generator content="Hugo 0.110.0"><meta property="og:title" content="Groth16プロトコルを追う"><meta property="og:description" content="Groth16とは この記事では、Groth16の論文1の読んでみての自分なりの理解をまとめます。Groth16とはゼロ知識証明システムの一種で、Jens Grothらが提案されました。ゼロ知識証明とは、あるステートメントが成立することを検証者に対して証明するためのシステムで、かつ成立するということ以外の情報が漏れないという特徴があります。
+この記事では、ある3次方程式の例を用いて証明者が解を知っていることをGroth16プロトコルを用いて検証者に証明する様子を具体的に追っていきます。Groth16の完全性・健全性・ゼロ知識性に関しては触れません。
+Quadratic Arithmetic Program 今回はVitalikさんのこちらの記事2を参考に、以下の3次方程式の解 ($x=3$) を知っていることを解に関する情報を公開することなく、検証者に対して証明したいとします。 $$ x^3 + x + 5 = 35 $$ Groth16はQuadratic Arithmetic Program (QAP)と呼ばれる形式を対象とするプロトコルなので、この問題をQAPに変換する必要があります。
+QAPは$m$個の$n-1$次方程式$\ v_i(X), u_i(x), w_i(X)\ $と$n$次方程式$\ t(X)\ $に対して、下の恒等式を満たすような$\ \lbrace a_i \rbrace_{i=0}^{m}, h(X)\ $が存在するかという問題です。 $$ \sum_{i=0}^m a_i v_i(X) \cdot \sum_{i=0}^m a_i u_i(X) = \sum_{i=0}^m a_i w_i(X) + h(X)t(X) $$
+Flattening まずは、証明したい方程式$\ x^3 + x + 5 = 35\ $を$\ a\ (+ / \times)\ b = c\ $の形のみで表される形へ平坦化をします。 $$ x \times x = \text{sym}_1 \newline \text{sym}_1 \times x = y \newline y + x = \text{sym}_2 \newline \text{sym}_2 + 5 = \text{out} \newline 1 \times 0 = 0 \newline \text{out} \times 0 = 0 $$ $\ x^3 + x + 5 = 35\ $を満たす$x$を見つけることは、上の制約式において$\ \text{out}=35\ $のときにすべての制約を満たす$\ \lbrace x, \text{sym}_1, y, \text{sym}_2 \rbrace\ $を見つけることに対応します。"><meta property="og:type" content="article"><meta property="og:url" content="https://6iKezbAD3CZnf.github.io/post/learning-bellman-groth16/"><meta property="article:section" content="post"><meta property="article:published_time" content="2023-01-06T20:37:22+09:00"><meta property="article:modified_time" content="2023-01-06T20:37:22+09:00"><meta itemprop=name content="Groth16プロトコルを追う"><meta itemprop=description content="Groth16とは この記事では、Groth16の論文1の読んでみての自分なりの理解をまとめます。Groth16とはゼロ知識証明システムの一種で、Jens Grothらが提案されました。ゼロ知識証明とは、あるステートメントが成立することを検証者に対して証明するためのシステムで、かつ成立するということ以外の情報が漏れないという特徴があります。
+この記事では、ある3次方程式の例を用いて証明者が解を知っていることをGroth16プロトコルを用いて検証者に証明する様子を具体的に追っていきます。Groth16の完全性・健全性・ゼロ知識性に関しては触れません。
+Quadratic Arithmetic Program 今回はVitalikさんのこちらの記事2を参考に、以下の3次方程式の解 ($x=3$) を知っていることを解に関する情報を公開することなく、検証者に対して証明したいとします。 $$ x^3 + x + 5 = 35 $$ Groth16はQuadratic Arithmetic Program (QAP)と呼ばれる形式を対象とするプロトコルなので、この問題をQAPに変換する必要があります。
+QAPは$m$個の$n-1$次方程式$\ v_i(X), u_i(x), w_i(X)\ $と$n$次方程式$\ t(X)\ $に対して、下の恒等式を満たすような$\ \lbrace a_i \rbrace_{i=0}^{m}, h(X)\ $が存在するかという問題です。 $$ \sum_{i=0}^m a_i v_i(X) \cdot \sum_{i=0}^m a_i u_i(X) = \sum_{i=0}^m a_i w_i(X) + h(X)t(X) $$
+Flattening まずは、証明したい方程式$\ x^3 + x + 5 = 35\ $を$\ a\ (+ / \times)\ b = c\ $の形のみで表される形へ平坦化をします。 $$ x \times x = \text{sym}_1 \newline \text{sym}_1 \times x = y \newline y + x = \text{sym}_2 \newline \text{sym}_2 + 5 = \text{out} \newline 1 \times 0 = 0 \newline \text{out} \times 0 = 0 $$ $\ x^3 + x + 5 = 35\ $を満たす$x$を見つけることは、上の制約式において$\ \text{out}=35\ $のときにすべての制約を満たす$\ \lbrace x, \text{sym}_1, y, \text{sym}_2 \rbrace\ $を見つけることに対応します。"><meta itemprop=datePublished content="2023-01-06T20:37:22+09:00"><meta itemprop=dateModified content="2023-01-06T20:37:22+09:00"><meta itemprop=wordCount content="1254"><meta itemprop=keywords content><meta name=twitter:card content="summary"><meta name=twitter:title content="Groth16プロトコルを追う"><meta name=twitter:description content="Groth16とは この記事では、Groth16の論文1の読んでみての自分なりの理解をまとめます。Groth16とはゼロ知識証明システムの一種で、Jens Grothらが提案されました。ゼロ知識証明とは、あるステートメントが成立することを検証者に対して証明するためのシステムで、かつ成立するということ以外の情報が漏れないという特徴があります。
+この記事では、ある3次方程式の例を用いて証明者が解を知っていることをGroth16プロトコルを用いて検証者に証明する様子を具体的に追っていきます。Groth16の完全性・健全性・ゼロ知識性に関しては触れません。
+Quadratic Arithmetic Program 今回はVitalikさんのこちらの記事2を参考に、以下の3次方程式の解 ($x=3$) を知っていることを解に関する情報を公開することなく、検証者に対して証明したいとします。 $$ x^3 + x + 5 = 35 $$ Groth16はQuadratic Arithmetic Program (QAP)と呼ばれる形式を対象とするプロトコルなので、この問題をQAPに変換する必要があります。
+QAPは$m$個の$n-1$次方程式$\ v_i(X), u_i(x), w_i(X)\ $と$n$次方程式$\ t(X)\ $に対して、下の恒等式を満たすような$\ \lbrace a_i \rbrace_{i=0}^{m}, h(X)\ $が存在するかという問題です。 $$ \sum_{i=0}^m a_i v_i(X) \cdot \sum_{i=0}^m a_i u_i(X) = \sum_{i=0}^m a_i w_i(X) + h(X)t(X) $$
+Flattening まずは、証明したい方程式$\ x^3 + x + 5 = 35\ $を$\ a\ (+ / \times)\ b = c\ $の形のみで表される形へ平坦化をします。 $$ x \times x = \text{sym}_1 \newline \text{sym}_1 \times x = y \newline y + x = \text{sym}_2 \newline \text{sym}_2 + 5 = \text{out} \newline 1 \times 0 = 0 \newline \text{out} \times 0 = 0 $$ $\ x^3 + x + 5 = 35\ $を満たす$x$を見つけることは、上の制約式において$\ \text{out}=35\ $のときにすべての制約を満たす$\ \lbrace x, \text{sym}_1, y, \text{sym}_2 \rbrace\ $を見つけることに対応します。"></head><body class="text-black duration-200 ease-out dark:text-white"><header class="mx-auto flex h-[5rem] max-w-3xl px-8 lg:justify-center"><div class="relative z-50 mr-auto flex items-center"><a class="-translate-x-[1px] -translate-y-0.5 text-3xl font-bold" href=https://6iKezbAD3CZnf.github.io>6i's website</a>
+<a class="btn-dark ml-6 h-6 w-6 shrink-0 cursor-pointer [background:url(./theme.png)_left_center/_auto_theme('spacing.6')_no-repeat] [transition:_background-position_0.4s_steps(5)] dark:[background-position:right]"></a></div><a class="btn-menu relative z-50 -mr-8 flex h-[5rem] w-[5rem] shrink-0 cursor-pointer flex-col items-center justify-center gap-2.5 lg:hidden"></a>
+<script>const htmlClass=document.documentElement.classList;setTimeout(()=>{htmlClass.remove("not-ready")},10);const btnMenu=document.querySelector(".btn-menu");btnMenu.addEventListener("click",()=>{htmlClass.toggle("open")});const metaTheme=document.querySelector('meta[name="theme-color"]'),lightBg=`"#faf6f1"`.replace(/"/g,""),setDark=e=>{metaTheme.setAttribute("content",e?"#000":lightBg),htmlClass[e?"add":"remove"]("dark"),localStorage.setItem("dark",e)},darkScheme=window.matchMedia("(prefers-color-scheme: dark)");if(htmlClass.contains("dark"))setDark(!0);else{const e=localStorage.getItem("dark");setDark(e?e==="true":darkScheme.matches)}darkScheme.addEventListener("change",e=>{setDark(e.matches)});const btnDark=document.querySelector(".btn-dark");btnDark.addEventListener("click",()=>{setDark(localStorage.getItem("dark")!=="true")})</script><div class="nav-wrapper fixed inset-x-0 top-full z-40 flex h-full select-none flex-col justify-center pb-16 duration-200 dark:bg-black lg:static lg:h-auto lg:flex-row lg:!bg-transparent lg:pb-0 lg:transition-none"><nav class="mt-12 flex justify-center space-x-10 dark:invert lg:mt-0 lg:ml-12 lg:items-center lg:space-x-6"><a class="h-8 w-8 [background:var(--url)_center_center/cover_no-repeat] lg:h-6 lg:w-6" style=--url:url(./twitter.svg) href=https://twitter.com/6ikezbad3cznf target=_blank rel=me></a>
+<a class="h-8 w-8 [background:var(--url)_center_center/cover_no-repeat] lg:h-6 lg:w-6" style=--url:url(./github.svg) href=https://github.com/6ikezbad3cznf target=_blank rel=me></a></nav></div></header><main class="prose prose-neutral relative mx-auto min-h-[calc(100%-10rem)] max-w-3xl px-8 pt-20 pb-32 dark:prose-invert"><article><header class=mb-20><h1 class="!my-0 pb-2.5">Groth16プロトコルを追う</h1><div class="text-sm opacity-60"><time>Jan 6, 2023</time>
+<span class=mx-1>&#183;</span>
+<span>6i</span></div></header><section><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css integrity=sha384-vKruj+a13U8yHIkAyGgK1J3ArTLzrFGBbBc0tDp4ad/EyewESeXE/Iv67Aj8gKZ0 crossorigin=anonymous><script defer src=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js integrity=sha384-PwRUT/YqbnEjkZO0zZxNqcxACrXe+j766U2amXcgMg5457rve2Y7I6ZJSm2A0mS4 crossorigin=anonymous></script>
+<script defer src=https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js integrity=sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05 crossorigin=anonymous></script>
+<script>document.addEventListener("DOMContentLoaded",function(){renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}],throwOnError:!1})})</script><h2 id=groth16とは>Groth16とは</h2><p>この記事では、Groth16の論文<sup id=fnref:1><a href=#fn:1 class=footnote-ref role=doc-noteref>1</a></sup>の読んでみての自分なりの理解をまとめます。Groth16とはゼロ知識証明システムの一種で、Jens Grothらが提案されました。ゼロ知識証明とは、あるステートメントが成立することを検証者に対して証明するためのシステムで、かつ成立するということ以外の情報が漏れないという特徴があります。<br>この記事では、ある3次方程式の例を用いて証明者が解を知っていることをGroth16プロトコルを用いて検証者に証明する様子を具体的に追っていきます。Groth16の完全性・健全性・ゼロ知識性に関しては触れません。</p><h2 id=quadratic-arithmetic-program>Quadratic Arithmetic Program</h2><p>今回はVitalikさんのこちらの記事<sup id=fnref:2><a href=#fn:2 class=footnote-ref role=doc-noteref>2</a></sup>を参考に、以下の3次方程式の解 ($x=3$) を知っていることを解に関する情報を公開することなく、検証者に対して証明したいとします。
+$$
+x^3 + x + 5 = 35
+$$
+Groth16はQuadratic Arithmetic Program (QAP)と呼ばれる形式を対象とするプロトコルなので、この問題をQAPに変換する必要があります。<br>QAPは$m$個の$n-1$次方程式$\ v_i(X), u_i(x), w_i(X)\ $と$n$次方程式$\ t(X)\ $に対して、下の恒等式を満たすような$\ \lbrace a_i \rbrace_{i=0}^{m}, h(X)\ $が存在するかという問題です。
+$$
+\sum_{i=0}^m a_i v_i(X) \cdot \sum_{i=0}^m a_i u_i(X) = \sum_{i=0}^m a_i w_i(X) + h(X)t(X)
+$$</p><h3 id=flattening>Flattening</h3><p>まずは、証明したい方程式$\ x^3 + x + 5 = 35\ $を$\ a\ (+ / \times)\ b = c\ $の形のみで表される形へ平坦化をします。
+$$
+x \times x = \text{sym}_1 \newline
+\text{sym}_1 \times x = y \newline
+y + x = \text{sym}_2 \newline
+\text{sym}_2 + 5 = \text{out} \newline
+1 \times 0 = 0 \newline
+\text{out} \times 0 = 0
+$$
+$\ x^3 + x + 5 = 35\ $を満たす$x$を見つけることは、上の制約式において$\ \text{out}=35\ $のときにすべての制約を満たす$\ \lbrace x, \text{sym}_1, y, \text{sym}_2 \rbrace\ $を見つけることに対応します。</p><h3 id=r1cs>R1CS</h3><p>次に平坦化された制約式をRank-1 Constraint System (R1CS)と呼ばれる形式へ変換します。<br>R1CSは3つの行列$A, B, C$に対して、下の等式を満たすような各要素が$\ \lbrace 1, \text{out}, x, \text{sym}_1, y, \text{sym}_2 \rbrace \ $に対応する長さ6のベクトル$\bold{a}$が存在するかという問題です。$\odot$は2つのベクトルの各要素の積を取る演算を表します。
+$$
+(A \cdot \bold{a}) \odot (B \cdot \bold{a}) = C \cdot \bold{a}
+$$
+今回の例に対応する行列$A, B, C$は次のようになります。
+$$
+A =
+\begin{pmatrix}
+0 & 0 & 1 & 0 & 0 & 0 \newline
+0 & 0 & 0 & 1 & 0 & 0 \newline
+0 & 0 & 1 & 0 & 1 & 0 \newline
+5 & 0 & 0 & 0 & 0 & 1 \newline
+1 & 0 & 0 & 0 & 0 & 0 \newline
+0 & 1 & 0 & 0 & 0 & 0
+\end{pmatrix}
+$$
+$$
+B =
+\begin{pmatrix}
+0 & 0 & 1 & 0 & 0 & 0 \newline
+0 & 0 & 1 & 0 & 0 & 0 \newline
+1 & 0 & 0 & 0 & 0 & 0 \newline
+1 & 0 & 0 & 0 & 0 & 0 \newline
+0 & 0 & 0 & 0 & 0 & 0 \newline
+0 & 0 & 0 & 0 & 0 & 0
+\end{pmatrix}
+$$
+$$
+C =
+\begin{pmatrix}
+0 & 0 & 0 & 1 & 0 & 0 \newline
+0 & 0 & 0 & 0 & 1 & 0 \newline
+0 & 0 & 0 & 0 & 0 & 1 \newline
+0 & 1 & 0 & 0 & 0 & 0 \newline
+0 & 0 & 0 & 0 & 0 & 0 \newline
+0 & 0 & 0 & 0 & 0 & 0
+\end{pmatrix}
+$$
+満たすべき等式の第一要素は次の式と同等になります。
+$$
+\begin{pmatrix} 0 & 0 & 1 & 0 & 0 & 0 \end{pmatrix} \cdot \begin{pmatrix} 1 \newline \text{out} \newline x \newline \text{sym}_1 \newline y \newline \text{sym}_2 \end{pmatrix} \times \begin{pmatrix} 0 & 0 & 1 & 0 & 0 & 0 \end{pmatrix} \cdot \begin{pmatrix} 1 \newline \text{out} \newline x \newline \text{sym}_1 \newline y \newline \text{sym}_2 \end{pmatrix} = \begin{pmatrix} 0 & 0 & 0 & 1 & 0 & 0 \end{pmatrix} \cdot \begin{pmatrix} 1 \newline \text{out} \newline x \newline \text{sym}_1 \newline y \newline \text{sym}_2 \end{pmatrix}
+$$
+$$
+\Leftrightarrow x \times x = \text{sym}_1
+$$
+このように、平坦化された制約式の解集合とR1CSに変換された問題の解集合が等しいことがわかります。</p><h3 id=qap>QAP</h3><p>R1CSを別の形で書き換えると次のようになります。
+$$
+\tag{$j \in [6]$} \sum_{i=0}^5 a_i A_{ij} \cdot \sum_{i=0}^5 a_i B_{ij} = \sum_{i=0}^5 a_i C_{ij}
+$$
+QAPの形に近づいてきました。次にLagrange補間を用いて行列の値を複数の多項式に変換します。今後は$\ p = 64513\ $の有限体$\mathbb{F}_p$上の演算を考えます。この有限体から、$\ \omega = 20201\ $を生成源とする位数$8$の巡回群$H$が自然に得られます。<br>$n-1$次多項式$\ u_i(X)\ $として</p><p>$$
+u_i(\omega^j) = A_{ji}
+$$
+となるものをLagarange補間により計算すると以下になります。
+$$
+\begin{cases}
+u_0(X) &= 42352X^7 + 1895X^6 + 44882X^5 + 32256X^4 + 38289X^3 + 46490X^2 + 35759X + 16129 \newline
+u_1(X) &= 5539X^7 + 36716X^6 + 6045X^5 + 8064X^4 + 58974X^3 + 27797X^2 + 58468X + 56449 \newline
+u_2(X) &= 28652X^7 + 19733X^5 + 48385X^4 + 28652X^3 + 19733X + 48385 \newline
+u_3(X) &= 58974X^7 + 36716X^6 + 58468X^5 + 8064X^4 + 5539X^3 + 27797X^2 + 6045X + 56449 \newline
+u_4(X) &= 36716X^7 + 8064X^6 + 27797X^5 + 56449X^4 + 36716X^3 + 8064X^2 + 27797X + 56449 \newline
+u_5(X) &= 58468X^7 + 27797X^6 + 58974X^5 + 8064X^4 + 6045X^3 + 36716X^2 + 5539X + 56449
+\end{cases}
+$$
+実際に、$\ u_0(X)\ $の各値は以下のようになります。
+$$
+\begin{cases}
+u_0(\omega^0) = 0 \newline
+u_0(\omega^1) = 0 \newline
+u_0(\omega^2) = 0 \newline
+u_0(\omega^3) = 5 \newline
+u_0(\omega^4) = 1 \newline
+u_0(\omega^5) = 0 \newline
+u_0(\omega^6) = 0 \newline
+u_0(\omega^7) = 0
+\end{cases}
+$$
+同様に$\ v_i(X), w_i(X)\ $は以下のようになります。
+$$
+\begin{cases}
+v_0(X) &= 30671X^7 + 35861X^6 + 22258X^5 + 42761X^3 + 44780X^2 + 33336X + 48385 \newline
+v_1(X) &= 0 \newline
+v_2(X) &= 50910X^7 + 28652X^6 + 50404X^5 + 61988X^3 + 19733X^2 + 62494X + 48385 \newline
+v_3(X) &= 0 \newline
+v_4(X) &= 0 \newline
+v_5(X) &= 0
+\end{cases}
+$$
+$$
+\begin{cases}
+w_0(X) &= 0 \newline
+w_1(X) &= 58468X^7 + 27797X^6 + 58974X^5 + 8064X^4 + 6045X^3 + 36716X^2 + 5539X + 56449 \newline
+w_2(X) &= 0 \newline
+w_3(X) &= 56449X^7 + 56449X^6 + 56449X^5 + 56449X^4 + 56449X^3 + 56449X^2 + 56449X + 56449 \newline
+w_4(X) &= 58974X^7 + 36716X^6 + 58468X^5 + 8064X^4 + 5539X^3 + 27797X^2 + 6045X + 56449 \newline
+w_5(X) &= 36716X^7 + 8064X^6 + 27797X^5 + 56449X^4 + 36716X^3 + 8064X^2 + 27797X + 56449
+\end{cases}
+$$
+これより、$\ x = \omega^i (i \in [8])\ $において</p><p>$$
+\sum_{i=0}^5 a_i v_i(X) \cdot \sum_{i=0}^5 a_i u_i(X) = \sum_{i=0}^5 a_i w_i(X)
+$$
+が満たす$\ a_i\ $が存在するかどうかという問題に変換されました。<br>これは、$\ t(X) = \Pi_{i=1}^8 (X - \omega^i)\ $とおいて、</p><p>$$
+\sum_{i=0}^5 a_i v_i(X) \cdot \sum_{i=0}^5 a_i u_i(X) = \sum_{i=0}^5 a_i w_i(X) + h(X)t(X)
+$$
+が恒等式となる$\ a_i, h(X)\ $が存在するかという問題になり、無事にQAPに変換することができました。<br>今回の例である$\ x^3 + x + 5 = 35\ $では</p><p>$$
+\begin{align*}
+\bold{a} &= \begin{pmatrix} 1 & 35 & 3 & 9 & 27 & 30 \end{pmatrix} \newline
+h(X) &= 37601X^6 + 56707X^5 + 25690X^4 + 55189X^3 + 20983X^2 + 64096X + 32255
+\end{align*}
+$$
+が解となります。</p><h2 id=groth16プロトコル>Groth16プロトコル</h2><p>証明したいステートメントをQAPに変換できましたので、実際にGroth16プロトコルを用いて検証者に対しゼロ知識の証明を行います。<br>まず、解である$\ \lbrace 1, \text{out}, x, \text{sym}_1, y, \text{sym}_2 \rbrace \ $のうちどれを公開したくないかを決めます。今回は方程式の解に関する$\ \lbrace x, \text{sym}_1, y, \text{sym}_2 \rbrace \ $にゼロ知識性を持ってほしいので、以下では$\ l=1\ $ ($x$のインデックス-1) と置きます。これらの解をWitnessと呼びます。<br>有限体$\mathbb{F}_p$から順回群$\mathbb{G}_1, \mathbb{G}_2$へのエンコードをそれぞれ$[]_1, []_2$で表します。また、$\mathbb{G}_1, \mathbb{G}_2$から$\mathbb{G}_T$へのペアリングを$e()$で表します。</p><h3 id=setup>Setup</h3><p>セットアップでは信頼できる第三種がランダムに次の値をサンプルし、$\ \alpha, \beta, \gamma, \delta, x \leftarrow \mathbb{Z}_p^*\ $<br>今回は$\ \alpha = 10, \beta = 20, \gamma = 30, \delta = 40, x = 50\ $の場合を考えます。<br>次によって定義されるCommon Reference String (CRS) $\ \bold{\sigma} = ([\sigma_1]_1, [\sigma_2]_2)\ $を計算し、ProverとVerifierに共有します。</p><p>$$
+\begin{align*}
+\bold{\sigma_1} &= \Bigg(
+\begin{array}{cc}
+\alpha, \beta, \delta, \lbrace x^{i} \rbrace_{i=0}^{n-1}, \lbrace \frac{\beta u_i(x) + \alpha v_i{x} + \omega_i(x)}{\gamma} \rbrace_{i=0}^l \newline
+\lbrace \frac{\beta u_i(x) + \alpha v_i{x} + \omega_i(x)}{\delta} \rbrace_{i=l+1}^m, \lbrace \frac{x^it(x)}{\delta} \rbrace_{i=0}^{n-2}
+\end{array}
+\Bigg) \newline
+&= (10, 20, 40, \lbrace 50^i \rbrace_{i=0}^{n-1}, \lbrace 2647, 52647 \rbrace, \lbrace 35780, 55030, 54803, 7884 \rbrace, \lbrace 22029, 4729, 42911, 16621, 56894, 6128, 48348 \rbrace )
+\end{align*}
+$$</p><p>$$
+\begin{align*}
+\bold{\sigma_2} &= ( \beta, \gamma, \delta, \lbrace x^i \rbrace_{i=0}^{n-1} ) \newline
+&= (20, 30, 40, \lbrace 50^i \rbrace_{i=0}^{n-1})
+\end{align*}
+$$</p><h3 id=prove>Prove</h3><p>Proveでは証明者がランダムに次の値をサンプルし、<br>$r, s \leftarrow \mathbb{Z}_p$<br>今回は$\ r = 60, s = 70\ $の場合を考えます。<br>証拠$\ \pi = ([A]_1, [B]_2, [C]_1)\ $を計算します。</p><p>$$
+\begin{align*}
+A &= \alpha + \sum_{i=0}^6 a_i u_i(x) + r \delta \newline
+&= 10 + \sum_{i=0}^6 a_i u_i(50) + 60 \times 40 \newline
+&= 10931
+\end{align*}
+$$</p><p>$$
+\begin{align*}
+B &= \beta + \sum_{i=0}^6 a_i v_i(x) + s \delta \newline
+&= 20 + \sum_{i=0}^6 a_i v_i(50) + 70 \times 40 \newline
+&= 14001
+\end{align*}
+$$</p><p>$$
+\begin{align*}
+C &= \frac{\Sigma_{i=l+1}^m a_i (\beta u_i(x) + \alpha v_i(x) + w_i(x)) + h(x)t(x)}{\delta} + As + Br - rs \delta \newline
+&= \frac{\Sigma_{i=3}^6 a_i (20 \times u_i(50) + 10 \times v_i(50) + w_i(50)) + h(50)t(50)}{40} + 10931 \times 70 + 14001 \times 60 - 60 \times 70 \times 40 \newline
+&= 11622
+\end{align*}
+$$</p><h3 id=verify>Verify</h3><p>検証者は証明者から受け取る証拠$\ \pi = (A^\prime, B^\prime, C^\prime) = ([10931]_1, [14001]_2, [11622]_1)\ $を受け取り以下の等式が成り立つかを検証します。</p><p>$$
+\begin{align*}
+&e(A^\prime, B^\prime) = e([\alpha], [\beta]) + e\Bigg( \begin{bmatrix} \sum_{i=0}^l a_i \frac{\beta u_i(x) + \alpha v_i(x) + \omega_i(x)}{\gamma} \end{bmatrix}, [\gamma] \Bigg) + e(C^\prime, [\delta]) \newline
+&\Leftrightarrow e([10931]_1, [14001]_2) = e([10], [20]) + e([38928], [30]) + e([11622], [40]) \newline
+&\Leftrightarrow e([20095], [1]) = e([1], [20095])
+\end{align*}
+$$</p><p>実際に等式が成り立つことが確認できました。<br>以上が具体的なGroth16プロトコルの計算例になります。暗号学的な仮定のもと、最後のVerifyにおける式が成り立つことがステートメントの成立を保証し、かつWitnessに関するゼロ知識性が成り立ちます。</p><h2 id=まとめ>まとめ</h2><p>今回はある3次方程式を例に、Groth16プロトコルの具体的な計算を追いました。前半では解を知っていることを証明したい方程式の例をQAPに変換し、後半では論文に従ってプロトコルを計算しました。<br>また今回の記事を作成するにあたっては、こちらのレポジトリ<sup id=fnref:3><a href=#fn:3 class=footnote-ref role=doc-noteref>3</a></sup>で計算を行いました。</p><div class=footnotes role=doc-endnotes><hr><ol><li id=fn:1><p><a href=https://link.springer.com/chapter/10.1007/978-3-662-49896-5_11>Groth16 Paper</a>&#160;<a href=#fnref:1 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:2><p><a href=https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649>Vitalik&rsquo;s Post</a>&#160;<a href=#fnref:2 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li><li id=fn:3><p><a href=https://github.com/6iKezbAD3CZnf/learning-bellman-groth16>learning-bellman-groth16</a>&#160;<a href=#fnref:3 class=footnote-backref role=doc-backlink>&#8617;&#xfe0e;</a></p></li></ol></div></section></article></main><footer class="opaco mx-auto flex h-[5rem] max-w-3xl items-center px-8 text-[0.9em] opacity-60"><div class=mr-auto>&copy; 2023
+<a class=link href=https://6iKezbAD3CZnf.github.io>6i's website</a></div><a class="link mx-6" href=https://gohugo.io/ rel=noopener target=_blank>Powered by Hugo️️</a>️
+<a class=link href=https://github.com/nanxiaobei/hugo-paper rel=noopener target=_blank>▷ Paper 6</a></footer></body></html>
